@@ -23,7 +23,7 @@ def Get_File_Generator(file_path):
         for line in file:
             yield line
 
-# Processes process_batch_log.json for building data structures
+# Processes batch_log.json for building data structures
 def Process_Batch_Log(file_path):
     print()
     print("process ", file_path)
@@ -50,7 +50,7 @@ def Process_Batch_Log(file_path):
         
         # Case unfriend event
     
-# Processes process_stream_log.json to update data structures
+# Processes stream_log.json to update data structures
 def Process_Stream_Log(file_path):
     print()
     print("process ", file_path)
