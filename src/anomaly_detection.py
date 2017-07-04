@@ -16,13 +16,18 @@ Builds users' purchase history and social networks.
 Reads stream events to check for anomalous purchases and updates record histories/social networks.
 """
 
-# Initialize global variables
+# Begin Global Variables
+
 NUMBER_OF_DEGREES = 1           # D, the maximum number of degrees of any connection in a social network
 NUMBER_OF_TRACKED_PURCHASES = 2 # T, the maximum sample size of tracked purchases in a social network
 CURRENT_LOG_INDEX = 0           # Used for assigning each purchase event a log index
 USERS = dict()                  # Dictionary of users
 
-# User class
+# End Global Variables
+
+# Begin Classes
+
+# User:
 #   Contains a user id, set of friends, set of distant connections, and DataFrame of purchase history.
 #   Friends are defined as social network connections of degree 1.
 #   Distant connections are defined as social network connections of degree 2 to D.
@@ -56,6 +61,10 @@ class User:
                 "Friends:", self.friends, 
                 "Distant connections:", self.distant_connections)
         print("Purchase history:", self.purchase_history)
+        
+# End Classes
+
+# Begin Public Methods
 
 # Convert timestamp formatted string to datetime object.
 def Convert_To_Datetime(timestamp):
@@ -73,9 +82,12 @@ def Process_Events_From_Input_Stream(input_stream):
         event_dictionary = json.loads(line)
         print(event_dictionary)
         
-        # Case purchase event 
+        # Case purchase event: 
+        #   Add purchase event to user's purchase history
+        #   Update user's social network connections' statistics
         
-        # Case befriend event
+        # Case befriend event:
+        #   
         
         # Case unfriend event
             
@@ -102,8 +114,10 @@ def Process_Stream_Log(file_path):
     print("process ", file_path)
     
     Process_Events_From_Input_Stream(Get_File_Generator(file_path))
+    
+# End Public Methods
 
-# Main script environment
+# Begin Main Script Environment
 if __name__ == '__main__':
     Process_Batch_Log(sys.argv[1])
     Process_Stream_Log(sys.argv[2])
@@ -113,6 +127,4 @@ if __name__ == '__main__':
     user = User(1)
     user.print()
     
-    user.event_type = 'new'
-    user.print()
-    
+# End Main Script Environment
