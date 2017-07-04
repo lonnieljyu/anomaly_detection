@@ -66,25 +66,10 @@ def Get_File_Generator(file_path):
     with open(file_path, 'r') as file:
         for line in file:
             yield line
-
-# Processes batch_log.json for building data structures
-def Process_Batch_Log(file_path):
-    print()
-    print("process ", file_path)
-    
-    # Create file generator to stream data
-    file_generator = Get_File_Generator(file_path)
-    
-    # Extract 'D' and 'T' parameters from first line
-    global NUMBER_OF_DEGREES
-    global NUMBER_OF_TRACKED_PURCHASES
-    parameters_dictionary = json.loads(file_generator.__next__())
-    NUMBER_OF_DEGREES = int(parameters_dictionary['D'])
-    NUMBER_OF_TRACKED_PURCHASES = int(parameters_dictionary['T'])
-    print("D =", NUMBER_OF_DEGREES, "T =", NUMBER_OF_TRACKED_PURCHASES)
-    
-    # Process each line in batch log
-    for line in file_generator:
+            
+# Process streaming events 
+def Process_Events_From_Input_Stream(input_stream):
+    for line in input_stream:
         event_dictionary = json.loads(line)
         print(event_dictionary)
         
@@ -93,23 +78,30 @@ def Process_Batch_Log(file_path):
         # Case befriend event
         
         # Case unfriend event
+            
+# Processes batch_log.json for building data structures
+def Process_Batch_Log(file_path):
+    print()
+    print("process ", file_path)    
+    
+    file_generator = Get_File_Generator(file_path)
+    
+    # Extract 'D' and 'T' parameters from first line
+    parameters_dictionary = json.loads(file_generator.__next__())
+    global NUMBER_OF_DEGREES
+    global NUMBER_OF_TRACKED_PURCHASES
+    NUMBER_OF_DEGREES = int(parameters_dictionary['D'])
+    NUMBER_OF_TRACKED_PURCHASES = int(parameters_dictionary['T'])
+    print("D =", NUMBER_OF_DEGREES, "T =", NUMBER_OF_TRACKED_PURCHASES)
+    
+    Process_Events_From_Input_Stream(file_generator)
     
 # Processes stream_log.json for updating data structures
 def Process_Stream_Log(file_path):
     print()
     print("process ", file_path)
     
-    # Process each line in stream log
-    for line in Get_File_Generator(file_path):
-        event_dictionary = json.loads(line)
-        print(event_dictionary)
-        
-        # Case purchase event 
-        
-        # Case befriend event
-        
-        # Case unfriend event
-    
+    Process_Events_From_Input_Stream(Get_File_Generator(file_path))
 
 # Main script environment
 if __name__ == '__main__':
