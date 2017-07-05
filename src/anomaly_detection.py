@@ -166,36 +166,47 @@ def Calculate_Network_Statistics():
             user.network_mean = df.mean()
             user.network_std = df.std(ddof=0)
     
-# Process batch log events
+# Process batch log events from json input stream
 def Process_Events_From_Batch_Log(input_stream):
     for line in input_stream:
         event_dictionary = json.loads(line)
-        if event_dictionary['event_type'] == 'purchase': Handle_Batch_Purchase_Event(event_dictionary)
+        if event_dictionary['event_type'] == 'purchase': 
+            Handle_Batch_Purchase_Event(event_dictionary)
         elif event_dictionary['event_type'] == 'befriend' \
-            or event_dictionary['event_type'] == 'unfriend': Handle_Friendship_Event(event_dictionary)
-                
+            or event_dictionary['event_type'] == 'unfriend': 
+            Handle_Friendship_Event(event_dictionary)
+            
     Build_Distant_Connections()
     Calculate_Network_Statistics()
     
-# Check if anomalous purchase
+# Truncate floating point decimal to two decimals
+def Truncate_Float(float):
+    left, right = str(float).split('.')
+    return '.'.join((left, right[0:2]))
+    
+# Check if purchase is anomalous
 def Is_Anomalous_Purchase(event_dictionary):
     global USERS_DICT
     user = USERS_DICT[event_dictionary['id']]
     if user is not None \
         and user.network_mean != 0 and user.network_std != 0 \
         and float(event_dictionary['amount']) > user.network_mean + user.network_std * 3:
+        event_dictionary['mean'] = Truncate_Float(user.network_mean)
+        event_dictionary['std'] = Truncate_Float(user.network_std)
         return True
     return False
     
-# Process stream log events 
-def Process_Events_From_Stream_Log(input_stream):
+# Process stream log events from json input stream
+# Write anomalous purchases in json to output stream
+def Process_Events_From_Stream_Log(input_stream, output_stream):
     for line in input_stream:
         event_dictionary = json.loads(line)
+        
         if event_dictionary['event_type'] == 'purchase':
             if Is_Anomalous_Purchase(event_dictionary):
-                # Add event to anomalous purchases list
-                pass
-                
+                output_stream.write(json.dumps(event_dictionary) + '\n')
+                del event_dictionary['mean']
+                del event_dictionary['std']
             Handle_Batch_Purchase_Event(event_dictionary)        
             Handle_Stream_Purchase_Event(event_dictionary) 
                 
@@ -204,8 +215,6 @@ def Process_Events_From_Stream_Log(input_stream):
             Handle_Friendship_Event(event_dictionary)
             Build_Distant_Connections()
             Calculate_Network_Statistics()
-        
-    # Write anomalous purchases to flagged_purchases.json
     
 # Create input file stream
 def Get_File_Generator(file_path):
@@ -222,21 +231,22 @@ def Extract_Network_Parameters(file_generator):
     NUMBER_OF_TRACKED_PURCHASES = int(parameters_dictionary['T'])
     
 # Processes batch_log.json for building data structures
-def Process_Batch_Log(file_path): 
-    file_generator = Get_File_Generator(file_path)
+def Process_Batch_Log(input_file_path): 
+    file_generator = Get_File_Generator(input_file_path)
     Extract_Network_Parameters(file_generator)
     Process_Events_From_Batch_Log(file_generator)
     
 # Processes stream_log.json for updating data structures and anomaly detection
-def Process_Stream_Log(file_path):
-    Process_Events_From_Stream_Log(Get_File_Generator(file_path))
-    
+def Process_Stream_Log(input_file_path, output_file_path):
+    with open(output_file_path, 'w') as output_file:
+        Process_Events_From_Stream_Log(Get_File_Generator(input_file_path), output_file)
+        
 ### End Main Methods
 
 ### Begin Main Script Environment
 if __name__ == '__main__':
     Process_Batch_Log(sys.argv[1])
-    Process_Stream_Log(sys.argv[2])
+    Process_Stream_Log(sys.argv[2], sys.argv[3])
     
     # test USERS_DICT
     print()
