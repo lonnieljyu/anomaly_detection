@@ -201,10 +201,11 @@ def Is_Anomalous_Purchase(event_dictionary):
 def Process_Events_From_Stream_Log(input_stream, output_stream):
     for line in input_stream:
         event_dictionary = json.loads(line)
+        anomaly_list = list()
         
         if event_dictionary['event_type'] == 'purchase':
             if Is_Anomalous_Purchase(event_dictionary):
-                output_stream.write(json.dumps(event_dictionary) + '\n')
+                anomaly_list.append(json.dumps(event_dictionary))
                 del event_dictionary['mean']
                 del event_dictionary['std']
             Handle_Batch_Purchase_Event(event_dictionary)        
@@ -215,6 +216,9 @@ def Process_Events_From_Stream_Log(input_stream, output_stream):
             Handle_Friendship_Event(event_dictionary)
             Build_Distant_Connections()
             Calculate_Network_Statistics()
+            
+    # Write anomalies to json output
+    output_stream.write('\n'.join(anomaly_list))
     
 # Create input file stream
 def Get_File_Generator(file_path):
