@@ -1,6 +1,6 @@
 import sys
 import json
-from pandas import DataFrame
+from pandas import DataFrame, Series
 
 """
 anomaly_detection.py
@@ -21,7 +21,7 @@ Reads stream events to check for anomalous purchases and updates record historie
 
 NUMBER_OF_DEGREES = 1           # D, the maximum number of degrees of any connection in a social network
 NUMBER_OF_TRACKED_PURCHASES = 2 # T, the maximum sample size of tracked purchases in a social network
-CURRENT_LOG_INDEX = 0           # Used for assigning each purchase event a log index
+CURRENT_LOG_INDEX = -1          # Used for assigning each purchase event a log index
 USERS = dict()                  # Dictionary of users where the key is the user id
 
 ### End Global Variables
@@ -44,27 +44,32 @@ class User:
         self.distant_connections = set()
         self.purchase_history = DataFrame()
         
-    def Add_Purchase(event_dictionary):
-        self.purchase_history.append(event_dictionary)
+    def Add_Purchase(self, event_dictionary):
+        global CURRENT_LOG_INDEX
+        CURRENT_LOG_INDEX += 1
+        new_data_frame = DataFrame(data=[event_dictionary], index=[CURRENT_LOG_INDEX])
+        self.purchase_history = self.purchase_history.append(new_data_frame)
         
-    def Add_Friend(friend):
+    def Add_Friend(self, friend):
         self.friends.add(friend)
         
-    def Remove_Friend(not_friend):
+    def Remove_Friend(self, not_friend):
         self.friends.remove(not_friend)
         
-    def Add_Distant_Connection(distant_connection):
+    def Add_Distant_Connection(self, distant_connection):
         self.distant_connections.add(distant_connection)
         
-    def Remove_Distant_Connection(not_distant_connection):
+    def Remove_Distant_Connection(self, not_distant_connection):
         self.distant_connections.remove(not_distant_connection)
         
     # Prints class contents for debugging
     def print(self):
         print(  "User Id:", self.id, 
+                "Network Mean:", self.network_mean,
+                "Network Standard Deviation:", self.network_std,
                 "Friends:", self.friends, 
                 "Distant connections:", self.distant_connections)
-        print("Purchase history:", self.purchase_history)
+        print("Purchase history:\n", self.purchase_history)
         
 ### End Classes
 
@@ -80,22 +85,42 @@ def Get_File_Generator(file_path):
         for line in file:
             yield line
             
+# Create user if not found in USERS
+def Verify_User_In_Users(user_id):
+    global USERS
+    if user_id not in USERS:
+        USERS[user_id] = User(user_id)
+        
 # Process batch_log.json events
 def Process_Events_From_Batch_Log(input_stream):
+    global USERS
     for line in input_stream:
         event_dictionary = json.loads(line)
         print(event_dictionary)
         
-        # Case purchase event (no network changes):
-        #   Increment and add current log index to event
-        #   Case user does not exist: create new user
-        #   Add purchase event to user's purchase history
-        
-        
-        
+        # Case purchase event (no network changes)
+        if event_dictionary['event_type'] == 'purchase':
+            print('purchase event')
+            
+            user_id = event_dictionary['id']
+            Verify_User_In_Users(user_id)            
+            USERS[user_id].Add_Purchase(event_dictionary)
+                
         # Case befriend/unfriend event:
         #   Case user(s) do not exist: create new user(s) 
         #   Add/Remove friendship connection for both users
+        
+        elif event_dictionary['event_type'] == 'befriend' \
+            or event_dictionary['event_type'] == 'unfriend':
+            user_id1 = event_dictionary['id1']
+            user_id2 = event_dictionary['id2']
+            Verify_User_In_Users(user_id1)
+            Verify_User_In_Users(user_id2)
+            
+            if event_dictionary['event_type'] == 'befriend':
+                print('befriend event')
+            else:
+                print('unfriend event')
         
     # Build every user's distant connections
     # Calculate each user's network statistics
@@ -161,9 +186,9 @@ if __name__ == '__main__':
     Process_Batch_Log(sys.argv[1])
     Process_Stream_Log(sys.argv[2])
     
-    # test user class
+    # test USERS
     print()
-    user = User(1)
-    user.print()
+    for user in USERS.values():
+        user.print()
     
 ### End Main Script Environment
