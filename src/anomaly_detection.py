@@ -16,16 +16,16 @@ Builds users' purchase history and social networks.
 Reads stream events to check for anomalous purchases and updates record histories/social networks.
 """
 
-# Begin Global Variables
+### Begin Global Variables
 
 NUMBER_OF_DEGREES = 1           # D, the maximum number of degrees of any connection in a social network
 NUMBER_OF_TRACKED_PURCHASES = 2 # T, the maximum sample size of tracked purchases in a social network
 CURRENT_LOG_INDEX = 0           # Used for assigning each purchase event a log index
 USERS = dict()                  # Dictionary of users
 
-# End Global Variables
+### End Global Variables
 
-# Begin Classes
+### Begin Classes
 
 # User:
 #   Contains a user id, set of friends, set of distant connections, and DataFrame of purchase history.
@@ -62,9 +62,9 @@ class User:
                 "Distant connections:", self.distant_connections)
         print("Purchase history:", self.purchase_history)
         
-# End Classes
+### End Classes
 
-# Begin Public Methods
+### Begin Public Methods
 
 # Convert timestamp formatted string to datetime object.
 def Convert_To_Datetime(timestamp):
@@ -115,9 +115,9 @@ def Process_Stream_Log(file_path):
     
     Process_Events_From_Input_Stream(Get_File_Generator(file_path))
     
-# End Public Methods
+### End Public Methods
 
-# Begin Main Script Environment
+### Begin Main Script Environment
 if __name__ == '__main__':
     Process_Batch_Log(sys.argv[1])
     Process_Stream_Log(sys.argv[2])
@@ -127,4 +127,4 @@ if __name__ == '__main__':
     user = User(1)
     user.print()
     
-# End Main Script Environment
+### End Main Script Environment
