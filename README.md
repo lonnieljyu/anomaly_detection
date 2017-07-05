@@ -4,13 +4,11 @@ Implements the exercise described in https://github.com/InsightDataScience/anoma
 
 # Dependencies
 
-Bash Shell
-Python 3
-Pandas
+Bash Shell, Python 3, Pandas
 
 # Comments
 
-I used a variant of depth-first search called depth-limited DFS for the graph traversal; its time complexity is comparable to DFS and BFS but its space complexity is better. Pandas DataFrames are such a great resource. Overall, it was a good challenge of my software engineering skills and a good opportunity to learn Python 3 vs. 2. I wish the machine learning portion was more interesting, although imagining how to make the ML part more efficient with online learning was a good problem to think about.
+I used a variant of depth-first search called Depth-Limited DFS for the graph traversal; its time complexity is not better than DFS or BFS but its space complexity is better. Pandas DataFrames are such a great resource. Overall, this exercise was a good challenge of my software engineering skills, a good opportunity for me to learn Python 3 vs. 2, and a chance to practice with Pandas. I wish the machine learning portion was more interesting, although imagining how to make the ML part more efficient with online learning was a good problem to think about.
 
 # Potential Improvements
 
