@@ -8,12 +8,12 @@ anomaly_detection.py
 - Lonnie Yu
 
 Usage: 
-python anomaly_detection.py batch_log.json stream_log.json
+python anomaly_detection.py batch_log.json stream_log.json flagged_purchases.json
 
 Description:
 Detects user's anomalous purchases based on user's social network's purchase statistics.
 A network's purchase history is fitted with a Gaussian distribution with a mean and standard deviation.
-Reads batch purchase records and social network friend/unfriend events.
+Reads batch purchase records and social network befriend/unfriend events.
 Builds users' purchase history and social networks.
 Reads stream events to check for anomalous purchases and updates record histories/social networks.
 """
@@ -87,8 +87,8 @@ def Verify_Users_In_Users(user_ids):
     for user_id in user_ids:
         Verify_User_In_Users(user_id)
         
-# Verify user existance and add purchase to purchase history
-def Handle_Purchase_Event(event_dictionary):
+# Handle purchase event in batch log
+def Handle_Batch_Purchase_Event(event_dictionary):
     global USERS_DICT
     user_id = event_dictionary['id']
     Verify_User_In_Users(user_id)            
@@ -105,6 +105,16 @@ def Handle_Unfriend_Event(user_id1, user_id2):
     global USERS_DICT
     USERS_DICT[user_id1].Remove_Friend(user_id2)
     USERS_DICT[user_id2].Remove_Friend(user_id1)
+    
+# Handle friendship event
+def Handle_Friendship_Event(event_dictionary):
+    user_id1 = event_dictionary['id1']
+    user_id2 = event_dictionary['id2']
+    Verify_Users_In_Users([user_id1, user_id2])
+    if event_dictionary['event_type'] == 'befriend':
+        Handle_Befriend_Event(user_id1, user_id2)
+    else:
+        Handle_Unfriend_Event(user_id1, user_id2)
     
 # Depth-Limited Depth-First Search recursive function
 def DLS(user_id, depth, visited_ids, user_ids):
@@ -146,63 +156,45 @@ def Calculate_Network_Statistics():
             user.network_mean = df.mean()
             user.network_std = df.std(ddof=0)
     
-# Process batch_log.json events
+# Process batch log events
 def Process_Events_From_Batch_Log(input_stream):
     for line in input_stream:
         event_dictionary = json.loads(line)
-        print(event_dictionary)
-        
-        # Case purchase event (no network changes)
-        if event_dictionary['event_type'] == 'purchase':
-            Handle_Purchase_Event(event_dictionary)
-            
-        # Case friendship event
+        if event_dictionary['event_type'] == 'purchase': Handle_Batch_Purchase_Event(event_dictionary)
         elif event_dictionary['event_type'] == 'befriend' \
-            or event_dictionary['event_type'] == 'unfriend':
-            user_id1 = event_dictionary['id1']
-            user_id2 = event_dictionary['id2']
-            Verify_Users_In_Users([user_id1, user_id2])
-            if event_dictionary['event_type'] == 'befriend':
-                Handle_Befriend_Event(user_id1, user_id2)
-            else:
-                Handle_Unfriend_Event(user_id1, user_id2)
+            or event_dictionary['event_type'] == 'unfriend': Handle_Friendship_Event(event_dictionary)
                 
     Build_Distant_Connections()
     Calculate_Network_Statistics()
     
-# Process stream_log.json events 
+# Check for anomalous purchase
+def Get_Anomalous_Purchase(event_dictionary):
+    # Case user does exist and network mean/std are initialized
+    #   and Case event amount > network mean + network std * 3:
+    #       Output anomaly detection
+    
+    pass
+    
+# Process stream log events 
 def Process_Events_From_Stream_Log(input_stream):
     for line in input_stream:
         event_dictionary = json.loads(line)
-        print(event_dictionary)
         
         # Case purchase event (no network changes)
         if event_dictionary['event_type'] == 'purchase':
+            Get_Anomalous_Purchase(event_dictionary)
+            Handle_Batch_Purchase_Event(event_dictionary)        
             
-            # Case user does exist and network mean/std are initialized
-            #   and Case event amount > network mean + network std * 3:
-            #       Output anomaly detection
-            
-            Handle_Purchase_Event(event_dictionary)        
-        
             # For each connection:
             #   Rebuild network purchase history
             #   Add event to network purchase history
             #   Case network purchase history count > T: 
             #       Sort history by most recent event and remove (T+1)th event
             #   Update network statistics (Welford's algorithm)
-        
-        # Case friendship event
+            
         elif event_dictionary['event_type'] == 'befriend' \
             or event_dictionary['event_type'] == 'unfriend':
-            user_id1 = event_dictionary['id1']
-            user_id2 = event_dictionary['id2']
-            Verify_Users_In_Users([user_id1, user_id2])
-            if event_dictionary['event_type'] == 'befriend':
-                Handle_Befriend_Event(user_id1, user_id2)
-            else:
-                Handle_Unfriend_Event(user_id1, user_id2)
-                
+            Handle_Friendship_Event(event_dictionary)
             Build_Distant_Connections()
             Calculate_Network_Statistics()
             
@@ -219,18 +211,15 @@ def Extract_Network_Parameters(file_generator):
     parameters_dictionary = json.loads(file_generator.__next__())
     NUMBER_OF_DEGREES = int(parameters_dictionary['D'])
     NUMBER_OF_TRACKED_PURCHASES = int(parameters_dictionary['T'])
-    print("D =", NUMBER_OF_DEGREES, "T =", NUMBER_OF_TRACKED_PURCHASES)
     
 # Processes batch_log.json for building data structures
-def Process_Batch_Log(file_path):
-    print("\nprocess ", file_path)    
+def Process_Batch_Log(file_path): 
     file_generator = Get_File_Generator(file_path)
     Extract_Network_Parameters(file_generator)
     Process_Events_From_Batch_Log(file_generator)
     
 # Processes stream_log.json for updating data structures and anomaly detection
 def Process_Stream_Log(file_path):
-    print("\nprocess ", file_path)
     Process_Events_From_Stream_Log(Get_File_Generator(file_path))
     
 ### End Main Methods
