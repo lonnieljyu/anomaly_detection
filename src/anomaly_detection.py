@@ -1,5 +1,6 @@
 import sys
 import json
+import pandas 
 from pandas import DataFrame
 
 """
@@ -74,10 +75,6 @@ class User:
 ### End Classes
 
 ### Begin Main Methods
-
-# Convert timestamp formatted string to datetime object
-def Convert_To_Datetime(timestamp):
-    pass
     
 # Create user if not found in USERS_DICT
 def Verify_User_In_Users(user_id):
@@ -127,20 +124,27 @@ def Build_Distant_Connections():
         user.distant_connections = set()
         DLS(user.id, NUMBER_OF_DEGREES, set(), user.distant_connections)
         
+# Get network purchase history in a DataFrame
+def Get_Network_Purchase_History(user):
+    global USERS_DICT
+    global NUMBER_OF_TRACKED_PURCHASES
+    purchases_df = DataFrame()
+    for connection_id in user.friends | user.distant_connections:
+        connection = USERS_DICT[connection_id]
+        purchases_df = purchases_df.append(connection.purchase_history.tail(NUMBER_OF_TRACKED_PURCHASES))
+    return purchases_df.sort_index().tail(NUMBER_OF_TRACKED_PURCHASES)
+            
 # Calculate each user's network statistics
 def Calculate_Network_Statistics():
     global USERS_DICT
-    global NUMBER_OF_DEGREES
-    global NUMBER_OF_TRACKED_PURCHASES
-    
     for user in USERS_DICT.values():
-        user.print()
-        network_ids = user.friends | user.distant_connections
-        print("network_ids", network_ids)
+        purchases_df = Get_Network_Purchase_History(user)
         
-        # build network purchase history
-        # sort by latest timestamp, then greatest log index
-        # find mean and std on 'amount' column 
+        # Calculate mean and std of 'amount' column 
+        if not purchases_df.empty:
+            df = purchases_df['amount'].apply(pandas.to_numeric)
+            user.network_mean = df.mean()
+            user.network_std = df.std(ddof=0)
     
 # Process batch_log.json events
 def Process_Events_From_Batch_Log(input_stream):
@@ -200,9 +204,7 @@ def Process_Events_From_Stream_Log(input_stream):
                 Handle_Unfriend_Event(user_id1, user_id2)
                 
             Build_Distant_Connections()
-            
-            # Rebuild each connection's network purchase history
-            # Recalculate each user's network statistics
+            Calculate_Network_Statistics()
             
 # Create input file stream
 def Get_File_Generator(file_path):
