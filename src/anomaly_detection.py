@@ -22,7 +22,7 @@ Reads stream events to check for anomalous purchases and updates record historie
 NUMBER_OF_DEGREES = 1           # D, the maximum number of degrees of any connection in a social network
 NUMBER_OF_TRACKED_PURCHASES = 2 # T, the maximum sample size of tracked purchases in a social network
 CURRENT_LOG_INDEX = -1          # Used for assigning each purchase event a log index
-USERS = dict()                  # Dictionary of users where the key is the user id
+USERS_DICT = dict()             # Dictionary of (user id, user) pairs
 
 ### End Global Variables
 
@@ -66,10 +66,10 @@ class User:
     def print(self):
         print(  "User Id:", self.id, 
                 "Network Mean:", self.network_mean,
-                "Network Standard Deviation:", self.network_std,
-                "Friends:", self.friends, 
-                "Distant connections:", self.distant_connections)
-        print("Purchase history:\n", self.purchase_history)
+                "Network Standard Deviation:", self.network_std, "\n"
+                "Friends:", self.friends, "\n",
+                "Distant connections:", self.distant_connections, "\n"
+                "Purchase history:\n", self.purchase_history, "\n")
         
 ### End Classes
 
@@ -85,15 +85,38 @@ def Get_File_Generator(file_path):
         for line in file:
             yield line
             
-# Create user if not found in USERS
+# Create user if not found in USERS_DICT
 def Verify_User_In_Users(user_id):
-    global USERS
-    if user_id not in USERS:
-        USERS[user_id] = User(user_id)
+    global USERS_DICT
+    if user_id not in USERS_DICT:
+        USERS_DICT[user_id] = User(user_id)
         
+# Verifify multiple users
+def Verify_Users_In_Users(user_ids):
+    for user_id in user_ids:
+        Verify_User_In_Users(user_id)
+        
+# Verify user existance and add purchase to purchase history
+def Handle_Purchase_Event(event_dictionary):
+    global USERS_DICT
+    user_id = event_dictionary['id']
+    Verify_User_In_Users(user_id)            
+    USERS_DICT[user_id].Add_Purchase(event_dictionary)
+    
+# Add friendship connection for both users
+def Handle_Befriend_Event(user_id1, user_id2):
+    global USERS_DICT
+    USERS_DICT[user_id1].Add_Friend(user_id2)
+    USERS_DICT[user_id2].Add_Friend(user_id1)
+    
+# Remove friendship connection for both users
+def Handle_Unfriend_Event(user_id1, user_id2):
+    global USERS_DICT
+    USERS_DICT[user_id1].Remove_Friend(user_id2)
+    USERS_DICT[user_id2].Remove_Friend(user_id1)
+    
 # Process batch_log.json events
 def Process_Events_From_Batch_Log(input_stream):
-    global USERS
     for line in input_stream:
         event_dictionary = json.loads(line)
         print(event_dictionary)
@@ -101,26 +124,21 @@ def Process_Events_From_Batch_Log(input_stream):
         # Case purchase event (no network changes)
         if event_dictionary['event_type'] == 'purchase':
             print('purchase event')
+            Handle_Purchase_Event(event_dictionary)
             
-            user_id = event_dictionary['id']
-            Verify_User_In_Users(user_id)            
-            USERS[user_id].Add_Purchase(event_dictionary)
-                
-        # Case befriend/unfriend event:
-        #   Case user(s) do not exist: create new user(s) 
-        #   Add/Remove friendship connection for both users
-        
+        # Case friendship event:
         elif event_dictionary['event_type'] == 'befriend' \
             or event_dictionary['event_type'] == 'unfriend':
             user_id1 = event_dictionary['id1']
             user_id2 = event_dictionary['id2']
-            Verify_User_In_Users(user_id1)
-            Verify_User_In_Users(user_id2)
+            Verify_Users_In_Users([user_id1, user_id2])
             
             if event_dictionary['event_type'] == 'befriend':
                 print('befriend event')
+                Handle_Befriend_Event(user_id1, user_id2)
             else:
                 print('unfriend event')
+                Handle_Unfriend_Event(user_id1, user_id2)
         
     # Build every user's distant connections
     # Calculate each user's network statistics
@@ -131,15 +149,15 @@ def Process_Events_From_Stream_Log(input_stream):
         event_dictionary = json.loads(line)
         print(event_dictionary)
         
-        # Case purchase event (no network changes):
-        
-        #   Case user does exist and network mean/std are initialized:
-        #       Case event amount > network mean + network std * 3:
-        #           Output anomaly detection
-        
-        #   Increment and add current log index to event
-        #   Case user does not exist: create new user
-        #   Add purchase event to user's purchase history
+        # Case purchase event (no network changes)
+        if event_dictionary['event_type'] == 'purchase':
+            print('purchase event')
+            
+            # Case user does exist and network mean/std are initialized
+            #   and Case event amount > network mean + network std * 3:
+            #       Output anomaly detection
+            
+            Handle_Purchase_Event(event_dictionary)        
         
         #   For each connection:
         #       Rebuild network purchase history
@@ -154,29 +172,26 @@ def Process_Events_From_Stream_Log(input_stream):
         #   Rebuild each user's distant connections (IDDFS)
         #   Rebuild each connection's network purchase history
         #   Recalculate each user's network statistics
-            
-# Processes batch_log.json for building data structures
-def Process_Batch_Log(file_path):
-    print()
-    print("process ", file_path)    
-    
-    file_generator = Get_File_Generator(file_path)
-    
-    # Extract 'D' and 'T' parameters from first line
-    parameters_dictionary = json.loads(file_generator.__next__())
+        
+# Extract 'D' and 'T' parameters from first line of batch_log.json
+def Extract_Network_Parameters(file_generator):
     global NUMBER_OF_DEGREES
     global NUMBER_OF_TRACKED_PURCHASES
+    parameters_dictionary = json.loads(file_generator.__next__())
     NUMBER_OF_DEGREES = int(parameters_dictionary['D'])
     NUMBER_OF_TRACKED_PURCHASES = int(parameters_dictionary['T'])
     print("D =", NUMBER_OF_DEGREES, "T =", NUMBER_OF_TRACKED_PURCHASES)
     
+# Processes batch_log.json for building data structures
+def Process_Batch_Log(file_path):
+    print("\nprocess ", file_path)    
+    file_generator = Get_File_Generator(file_path)
+    Extract_Network_Parameters(file_generator)
     Process_Events_From_Batch_Log(file_generator)
     
 # Processes stream_log.json for updating data structures
 def Process_Stream_Log(file_path):
-    print()
-    print("process ", file_path)
-    
+    print("\nprocess ", file_path)
     Process_Events_From_Stream_Log(Get_File_Generator(file_path))
     
 ### End Public Methods
@@ -186,9 +201,9 @@ if __name__ == '__main__':
     Process_Batch_Log(sys.argv[1])
     Process_Stream_Log(sys.argv[2])
     
-    # test USERS
+    # test USERS_DICT
     print()
-    for user in USERS.values():
+    for user in USERS_DICT.values():
         user.print()
     
 ### End Main Script Environment
