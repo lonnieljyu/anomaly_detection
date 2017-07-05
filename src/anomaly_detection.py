@@ -96,13 +96,14 @@ def Handle_Batch_Purchase_Event(event_dictionary):
     
 # Handle purchase event in stream log
 def Handle_Stream_Purchase_Event(event_dictionary):
-    # For each connection:
-    #   Rebuild network purchase history
-    #   Add event to network purchase history
-    #   Case network purchase history count > T: 
-    #       Sort history by most recent event and remove (T+1)th event
-    #   Update network statistics (Welford's algorithm)
-    pass
+    global USERS_DICT
+    global CURRENT_LOG_INDEX
+    user = USERS_DICT[event_dictionary['id']]
+    for connection_id in user.friends | user.distant_connections:
+        connection = USERS_DICT[connection_id]
+        purchases_df = Get_Network_Purchase_History(connection)
+        if CURRENT_LOG_INDEX in purchases_df.index:
+            Calculate_Network_Statistics()
     
 # Add friendship connection for both users
 def Handle_Befriend_Event(user_id1, user_id2):
@@ -233,13 +234,13 @@ def Extract_Network_Parameters(file_generator):
     NUMBER_OF_DEGREES = int(parameters_dictionary['D'])
     NUMBER_OF_TRACKED_PURCHASES = int(parameters_dictionary['T'])
     
-# Processes batch_log.json for building data structures
+# Process batch_log.json for building data structures
 def Process_Batch_Log(input_file_path): 
     file_generator = Get_File_Generator(input_file_path)
     Extract_Network_Parameters(file_generator)
     Process_Events_From_Batch_Log(file_generator)
     
-# Processes stream_log.json for updating data structures and anomaly detection
+# Process stream_log.json for updating data structures and anomaly detection
 def Process_Stream_Log(input_file_path, output_file_path):
     with open(output_file_path, 'w') as output_file:
         Process_Events_From_Stream_Log(Get_File_Generator(input_file_path), output_file)
