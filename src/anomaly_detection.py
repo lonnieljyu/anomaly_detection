@@ -199,9 +199,9 @@ def Is_Anomalous_Purchase(event_dictionary):
 # Process stream log events from json input stream
 # Write anomalous purchases in json to output stream
 def Process_Events_From_Stream_Log(input_stream, output_stream):
+    anomaly_list = list()
     for line in input_stream:
         event_dictionary = json.loads(line)
-        anomaly_list = list()
         
         if event_dictionary['event_type'] == 'purchase':
             if Is_Anomalous_Purchase(event_dictionary):
@@ -217,7 +217,6 @@ def Process_Events_From_Stream_Log(input_stream, output_stream):
             Build_Distant_Connections()
             Calculate_Network_Statistics()
             
-    # Write anomalies to json output
     output_stream.write('\n'.join(anomaly_list))
     
 # Create input file stream
