@@ -22,20 +22,20 @@ Reads stream events to check for anomalous purchases and updates record historie
 NUMBER_OF_DEGREES = 1           # D, the maximum number of degrees of any connection in a social network
 NUMBER_OF_TRACKED_PURCHASES = 2 # T, the maximum sample size of tracked purchases in a social network
 CURRENT_LOG_INDEX = -1          # Used for assigning each purchase event a log index
-USERS_DICT = dict()             # Dictionary of (user id, user) pairs
+USERS_DICT = dict()             # Dictionary of (user id, User) pairs
 
 ### End Global Variables
 
 ### Begin Classes
 
-# User:
-#   Contains a user id, set of friends, set of distant connections, network's mean and standard deviation (std), and DataFrame of purchase history.
-#   Friends are defined as network connections of degree 1.
-#   Distant connections are defined as network connections of degree 2 to D.
-#   All connections are bidirectional.
-#   Each row of the purchase history contains one purchase event information.
-#       A DataFrame is a Pandas data structure for tabular data with easy slicing and sorting.
 class User:
+# Contains a user id, set of friends, set of distant connections, network's mean and standard deviation (std), and DataFrame of purchase history.
+# Friends are defined as network connections of 1 degree.
+# Distant connections are defined as network connections of 2 to D degrees.
+# All connections are bidirectional.
+# Each row of the purchase history contains one purchase event information indexed by log index.
+# A DataFrame is a Pandas data structure for tabular data with easy slicing and sorting functionality.
+
     def __init__(self, id):
         self.id = id
         self.network_mean = 0
@@ -67,7 +67,7 @@ class User:
         print(  "User Id:", self.id, 
                 "Network Mean:", self.network_mean,
                 "Network Standard Deviation:", self.network_std, "\n"
-                "Friends:", self.friends, "\n",
+                "Friends:", self.friends, "\n"
                 "Distant connections:", self.distant_connections, "\n"
                 "Purchase history:\n", self.purchase_history, "\n")
         
@@ -79,12 +79,6 @@ class User:
 def Convert_To_Datetime(timestamp):
     pass
     
-# Create input file stream
-def Get_File_Generator(file_path):
-    with open(file_path, 'r') as file:
-        for line in file:
-            yield line
-            
 # Create user if not found in USERS_DICT
 def Verify_User_In_Users(user_id):
     global USERS_DICT
@@ -140,7 +134,8 @@ def Process_Events_From_Batch_Log(input_stream):
                 print('unfriend event')
                 Handle_Unfriend_Event(user_id1, user_id2)
         
-    # Build every user's distant connections
+    # Build every user's distant connections (IDDFS)
+    
     # Calculate each user's network statistics
             
 # Process stream_log.json events 
@@ -159,20 +154,37 @@ def Process_Events_From_Stream_Log(input_stream):
             
             Handle_Purchase_Event(event_dictionary)        
         
-        #   For each connection:
-        #       Rebuild network purchase history
-        #       Add event to network purchase history
-        #       Case network purchase history count > T: 
-        #           Sort history by most recent event and remove (T+1)th event
-        #   Update each connection's network statistics (Welford's algorithm)
+            # For each connection:
+            #   Rebuild network purchase history
+            #   Add event to network purchase history
+            #   Case network purchase history count > T: 
+            #       Sort history by most recent event and remove (T+1)th event
+            #   Update network statistics (Welford's algorithm)
         
-        # Case befriend/unfriend event:
-        #   Case user(s) do not exist: create new user(s) 
-        #   Add/Remove friendship connection for both users
-        #   Rebuild each user's distant connections (IDDFS)
-        #   Rebuild each connection's network purchase history
-        #   Recalculate each user's network statistics
-        
+        # Case friendship event:
+        elif event_dictionary['event_type'] == 'befriend' \
+            or event_dictionary['event_type'] == 'unfriend':
+            user_id1 = event_dictionary['id1']
+            user_id2 = event_dictionary['id2']
+            Verify_Users_In_Users([user_id1, user_id2])
+            
+            if event_dictionary['event_type'] == 'befriend':
+                print('befriend event')
+                Handle_Befriend_Event(user_id1, user_id2)
+            else:
+                print('unfriend event')
+                Handle_Unfriend_Event(user_id1, user_id2)
+                
+            # Rebuild each user's distant connections (IDDFS)
+            # Rebuild each connection's network purchase history
+            # Recalculate each user's network statistics
+            
+# Create input file stream
+def Get_File_Generator(file_path):
+    with open(file_path, 'r') as file:
+        for line in file:
+            yield line
+            
 # Extract 'D' and 'T' parameters from first line of batch_log.json
 def Extract_Network_Parameters(file_generator):
     global NUMBER_OF_DEGREES
@@ -189,7 +201,7 @@ def Process_Batch_Log(file_path):
     Extract_Network_Parameters(file_generator)
     Process_Events_From_Batch_Log(file_generator)
     
-# Processes stream_log.json for updating data structures
+# Processes stream_log.json for updating data structures and anomaly detection
 def Process_Stream_Log(file_path):
     print("\nprocess ", file_path)
     Process_Events_From_Stream_Log(Get_File_Generator(file_path))
