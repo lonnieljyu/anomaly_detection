@@ -192,7 +192,7 @@ def Is_Anomalous_Purchase(event_dictionary):
         and user.network_mean != 0 and user.network_std != 0 \
         and float(event_dictionary['amount']) > user.network_mean + user.network_std * 3:
         event_dictionary['mean'] = Truncate_Float(user.network_mean)
-        event_dictionary['std'] = Truncate_Float(user.network_std)
+        event_dictionary['sd'] = Truncate_Float(user.network_std)
         return True
     return False
     
@@ -207,7 +207,7 @@ def Process_Events_From_Stream_Log(input_stream, output_stream):
             if Is_Anomalous_Purchase(event_dictionary):
                 anomaly_list.append(json.dumps(event_dictionary))
                 del event_dictionary['mean']
-                del event_dictionary['std']
+                del event_dictionary['sd']
             Handle_Batch_Purchase_Event(event_dictionary)        
             Handle_Stream_Purchase_Event(event_dictionary) 
                 
