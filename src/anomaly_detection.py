@@ -73,7 +73,7 @@ class User:
         
 ### End Classes
 
-### Begin Public Methods
+### Begin Main Methods
 
 # Convert timestamp formatted string to datetime object
 def Convert_To_Datetime(timestamp):
@@ -109,6 +109,23 @@ def Handle_Unfriend_Event(user_id1, user_id2):
     USERS_DICT[user_id1].Remove_Friend(user_id2)
     USERS_DICT[user_id2].Remove_Friend(user_id1)
     
+# Depth-Limited Depth-First Search recursive function
+def DLS(user_id, depth, user_ids):
+    if depth == 2: 
+        user_ids.add(user_id)
+        return
+    global USERS_DICT
+    for friend_id in USERS_DICT[user_id].friends:
+        DLS(friend_id, depth-1, user_ids)
+    
+# Build every user's distant connections
+def Build_Distant_Connections():
+    global USERS_DICT
+    global NUMBER_OF_DEGREES
+    for user in USERS_DICT.values():
+        user.distant_connections = set()
+        DLS(user.id, NUMBER_OF_DEGREES, user.distant_connections)
+    
 # Process batch_log.json events
 def Process_Events_From_Batch_Log(input_stream):
     for line in input_stream:
@@ -117,10 +134,9 @@ def Process_Events_From_Batch_Log(input_stream):
         
         # Case purchase event (no network changes)
         if event_dictionary['event_type'] == 'purchase':
-            print('purchase event')
             Handle_Purchase_Event(event_dictionary)
             
-        # Case friendship event:
+        # Case friendship event
         elif event_dictionary['event_type'] == 'befriend' \
             or event_dictionary['event_type'] == 'unfriend':
             user_id1 = event_dictionary['id1']
@@ -128,13 +144,11 @@ def Process_Events_From_Batch_Log(input_stream):
             Verify_Users_In_Users([user_id1, user_id2])
             
             if event_dictionary['event_type'] == 'befriend':
-                print('befriend event')
                 Handle_Befriend_Event(user_id1, user_id2)
             else:
-                print('unfriend event')
                 Handle_Unfriend_Event(user_id1, user_id2)
         
-    # Build every user's distant connections (IDDFS)
+    Build_Distant_Connections()
     
     # Calculate each user's network statistics
             
@@ -146,7 +160,6 @@ def Process_Events_From_Stream_Log(input_stream):
         
         # Case purchase event (no network changes)
         if event_dictionary['event_type'] == 'purchase':
-            print('purchase event')
             
             # Case user does exist and network mean/std are initialized
             #   and Case event amount > network mean + network std * 3:
@@ -161,7 +174,7 @@ def Process_Events_From_Stream_Log(input_stream):
             #       Sort history by most recent event and remove (T+1)th event
             #   Update network statistics (Welford's algorithm)
         
-        # Case friendship event:
+        # Case friendship event
         elif event_dictionary['event_type'] == 'befriend' \
             or event_dictionary['event_type'] == 'unfriend':
             user_id1 = event_dictionary['id1']
@@ -169,13 +182,12 @@ def Process_Events_From_Stream_Log(input_stream):
             Verify_Users_In_Users([user_id1, user_id2])
             
             if event_dictionary['event_type'] == 'befriend':
-                print('befriend event')
                 Handle_Befriend_Event(user_id1, user_id2)
             else:
-                print('unfriend event')
                 Handle_Unfriend_Event(user_id1, user_id2)
                 
-            # Rebuild each user's distant connections (IDDFS)
+            Build_Distant_Connections()
+            
             # Rebuild each connection's network purchase history
             # Recalculate each user's network statistics
             
@@ -206,7 +218,7 @@ def Process_Stream_Log(file_path):
     print("\nprocess ", file_path)
     Process_Events_From_Stream_Log(Get_File_Generator(file_path))
     
-### End Public Methods
+### End Main Methods
 
 ### Begin Main Script Environment
 if __name__ == '__main__':
