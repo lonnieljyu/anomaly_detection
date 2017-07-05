@@ -63,15 +63,6 @@ class User:
     def Remove_Distant_Connection(self, not_distant_connection):
         self.distant_connections.remove(not_distant_connection)
         
-    # Prints class contents for debugging
-    def print(self):
-        print(  "User Id:", self.id, 
-                "Network Mean:", self.network_mean,
-                "Network Standard Deviation:", self.network_std, "\n"
-                "Friends:", self.friends, "\n"
-                "Distant connections:", self.distant_connections, "\n"
-                "Purchase history:\n", self.purchase_history, "\n")
-        
 ### End Classes
 
 ### Begin Main Methods
@@ -87,24 +78,6 @@ def Verify_Users_In_Users(user_ids):
     for user_id in user_ids:
         Verify_User_In_Users(user_id)
         
-# Handle purchase event in batch log
-def Handle_Batch_Purchase_Event(event_dictionary):
-    global USERS_DICT
-    user_id = event_dictionary['id']
-    Verify_User_In_Users(user_id)            
-    USERS_DICT[user_id].Add_Purchase(event_dictionary)
-    
-# Handle purchase event in stream log
-def Handle_Stream_Purchase_Event(event_dictionary):
-    global USERS_DICT
-    global CURRENT_LOG_INDEX
-    user = USERS_DICT[event_dictionary['id']]
-    for connection_id in user.friends | user.distant_connections:
-        connection = USERS_DICT[connection_id]
-        purchases_df = Get_Network_Purchase_History(connection)
-        if CURRENT_LOG_INDEX in purchases_df.index:
-            Calculate_Network_Statistics()
-    
 # Add friendship connection for both users
 def Handle_Befriend_Event(user_id1, user_id2):
     global USERS_DICT
@@ -133,6 +106,7 @@ def DLS(user_id, depth, visited_ids, user_ids):
     global NUMBER_OF_DEGREES
     if depth < NUMBER_OF_DEGREES - 1: user_ids.add(user_id)
     if depth == 0: return
+    
     global USERS_DICT
     for friend_id in USERS_DICT[user_id].friends - visited_ids:
         DLS(friend_id, depth-1, visited_ids, user_ids)
@@ -150,6 +124,8 @@ def Get_Network_Purchase_History(user):
     global USERS_DICT
     global NUMBER_OF_TRACKED_PURCHASES
     purchases_df = DataFrame()
+    
+    # Build history from all connections
     for connection_id in user.friends | user.distant_connections:
         connection = USERS_DICT[connection_id]
         purchases_df = purchases_df.append(connection.purchase_history.tail(NUMBER_OF_TRACKED_PURCHASES))
@@ -166,6 +142,13 @@ def Calculate_Network_Statistics():
             df = purchases_df['amount'].apply(pandas.to_numeric)
             user.network_mean = df.mean()
             user.network_std = df.std(ddof=0)
+            
+# Handle purchase event in batch log
+def Handle_Batch_Purchase_Event(event_dictionary):
+    global USERS_DICT
+    user_id = event_dictionary['id']
+    Verify_User_In_Users(user_id)            
+    USERS_DICT[user_id].Add_Purchase(event_dictionary)
     
 # Process batch log events from json input stream
 def Process_Events_From_Batch_Log(input_stream):
@@ -179,6 +162,19 @@ def Process_Events_From_Batch_Log(input_stream):
             
     Build_Distant_Connections()
     Calculate_Network_Statistics()
+    
+# Handle purchase event in stream log
+def Handle_Stream_Purchase_Event(event_dictionary):
+    global USERS_DICT
+    global CURRENT_LOG_INDEX
+    user = USERS_DICT[event_dictionary['id']]
+    
+    # Update network statistics for relevant connections
+    for connection_id in user.friends | user.distant_connections:
+        connection = USERS_DICT[connection_id]
+        purchases_df = Get_Network_Purchase_History(connection)
+        if CURRENT_LOG_INDEX in purchases_df.index:
+            Calculate_Network_Statistics()
     
 # Truncate floating point decimal to two decimals
 def Truncate_Float(float):
@@ -204,6 +200,7 @@ def Process_Events_From_Stream_Log(input_stream, output_stream):
     for line in input_stream:
         event_dictionary = json.loads(line)
         
+        # Case stream purchase event
         if event_dictionary['event_type'] == 'purchase':
             if Is_Anomalous_Purchase(event_dictionary):
                 anomaly_list.append(json.dumps(event_dictionary))
@@ -212,6 +209,7 @@ def Process_Events_From_Stream_Log(input_stream, output_stream):
             Handle_Batch_Purchase_Event(event_dictionary)        
             Handle_Stream_Purchase_Event(event_dictionary) 
                 
+        # Case stream friendship event
         elif event_dictionary['event_type'] == 'befriend' \
             or event_dictionary['event_type'] == 'unfriend':
             Handle_Friendship_Event(event_dictionary)
@@ -248,13 +246,9 @@ def Process_Stream_Log(input_file_path, output_file_path):
 ### End Main Methods
 
 ### Begin Main Script Environment
+
 if __name__ == '__main__':
     Process_Batch_Log(sys.argv[1])
     Process_Stream_Log(sys.argv[2], sys.argv[3])
-    
-    # test USERS_DICT
-    print()
-    for user in USERS_DICT.values():
-        user.print()
     
 ### End Main Script Environment
