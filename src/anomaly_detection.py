@@ -94,6 +94,16 @@ def Handle_Batch_Purchase_Event(event_dictionary):
     Verify_User_In_Users(user_id)            
     USERS_DICT[user_id].Add_Purchase(event_dictionary)
     
+# Handle purchase event in stream log
+def Handle_Stream_Purchase_Event(event_dictionary):
+    # For each connection:
+    #   Rebuild network purchase history
+    #   Add event to network purchase history
+    #   Case network purchase history count > T: 
+    #       Sort history by most recent event and remove (T+1)th event
+    #   Update network statistics (Welford's algorithm)
+    pass
+    
 # Add friendship connection for both users
 def Handle_Befriend_Event(user_id1, user_id2):
     global USERS_DICT
@@ -167,37 +177,36 @@ def Process_Events_From_Batch_Log(input_stream):
     Build_Distant_Connections()
     Calculate_Network_Statistics()
     
-# Check for anomalous purchase
-def Get_Anomalous_Purchase(event_dictionary):
-    # Case user does exist and network mean/std are initialized
-    #   and Case event amount > network mean + network std * 3:
-    #       Output anomaly detection
-    
-    pass
+# Check if anomalous purchase
+def Is_Anomalous_Purchase(event_dictionary):
+    global USERS_DICT
+    user = USERS_DICT[event_dictionary['id']]
+    if user is not None \
+        and user.network_mean != 0 and user.network_std != 0 \
+        and float(event_dictionary['amount']) > user.network_mean + user.network_std * 3:
+        return True
+    return False
     
 # Process stream log events 
 def Process_Events_From_Stream_Log(input_stream):
     for line in input_stream:
         event_dictionary = json.loads(line)
-        
-        # Case purchase event (no network changes)
         if event_dictionary['event_type'] == 'purchase':
-            Get_Anomalous_Purchase(event_dictionary)
+            if Is_Anomalous_Purchase(event_dictionary):
+                # Add event to anomalous purchases list
+                pass
+                
             Handle_Batch_Purchase_Event(event_dictionary)        
-            
-            # For each connection:
-            #   Rebuild network purchase history
-            #   Add event to network purchase history
-            #   Case network purchase history count > T: 
-            #       Sort history by most recent event and remove (T+1)th event
-            #   Update network statistics (Welford's algorithm)
-            
+            Handle_Stream_Purchase_Event(event_dictionary) 
+                
         elif event_dictionary['event_type'] == 'befriend' \
             or event_dictionary['event_type'] == 'unfriend':
             Handle_Friendship_Event(event_dictionary)
             Build_Distant_Connections()
             Calculate_Network_Statistics()
-            
+        
+    # Write anomalous purchases to flagged_purchases.json
+    
 # Create input file stream
 def Get_File_Generator(file_path):
     with open(file_path, 'r') as file:
