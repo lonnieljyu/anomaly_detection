@@ -1,6 +1,6 @@
 import sys
 import json
-from pandas import DataFrame, Series
+from pandas import DataFrame
 
 """
 anomaly_detection.py
@@ -110,13 +110,14 @@ def Handle_Unfriend_Event(user_id1, user_id2):
     USERS_DICT[user_id2].Remove_Friend(user_id1)
     
 # Depth-Limited Depth-First Search recursive function
-def DLS(user_id, depth, user_ids):
-    if depth == 2: 
-        user_ids.add(user_id)
-        return
+def DLS(user_id, depth, visited_ids, user_ids):
+    visited_ids.add(user_id)
+    global NUMBER_OF_DEGREES
+    if depth < NUMBER_OF_DEGREES - 1: user_ids.add(user_id)
+    if depth == 0: return
     global USERS_DICT
-    for friend_id in USERS_DICT[user_id].friends:
-        DLS(friend_id, depth-1, user_ids)
+    for friend_id in USERS_DICT[user_id].friends - visited_ids:
+        DLS(friend_id, depth-1, visited_ids, user_ids)
     
 # Build every user's distant connections
 def Build_Distant_Connections():
@@ -124,7 +125,22 @@ def Build_Distant_Connections():
     global NUMBER_OF_DEGREES
     for user in USERS_DICT.values():
         user.distant_connections = set()
-        DLS(user.id, NUMBER_OF_DEGREES, user.distant_connections)
+        DLS(user.id, NUMBER_OF_DEGREES, set(), user.distant_connections)
+        
+# Calculate each user's network statistics
+def Calculate_Network_Statistics():
+    global USERS_DICT
+    global NUMBER_OF_DEGREES
+    global NUMBER_OF_TRACKED_PURCHASES
+    
+    for user in USERS_DICT.values():
+        user.print()
+        network_ids = user.friends | user.distant_connections
+        print("network_ids", network_ids)
+        
+        # build network purchase history
+        # sort by latest timestamp, then greatest log index
+        # find mean and std on 'amount' column 
     
 # Process batch_log.json events
 def Process_Events_From_Batch_Log(input_stream):
@@ -142,16 +158,14 @@ def Process_Events_From_Batch_Log(input_stream):
             user_id1 = event_dictionary['id1']
             user_id2 = event_dictionary['id2']
             Verify_Users_In_Users([user_id1, user_id2])
-            
             if event_dictionary['event_type'] == 'befriend':
                 Handle_Befriend_Event(user_id1, user_id2)
             else:
                 Handle_Unfriend_Event(user_id1, user_id2)
-        
+                
     Build_Distant_Connections()
+    Calculate_Network_Statistics()
     
-    # Calculate each user's network statistics
-            
 # Process stream_log.json events 
 def Process_Events_From_Stream_Log(input_stream):
     for line in input_stream:
@@ -180,7 +194,6 @@ def Process_Events_From_Stream_Log(input_stream):
             user_id1 = event_dictionary['id1']
             user_id2 = event_dictionary['id2']
             Verify_Users_In_Users([user_id1, user_id2])
-            
             if event_dictionary['event_type'] == 'befriend':
                 Handle_Befriend_Event(user_id1, user_id2)
             else:
