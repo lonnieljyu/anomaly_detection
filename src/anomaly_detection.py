@@ -39,12 +39,14 @@ def Get_Network_Purchase_History(user):
     return purchases_df.sort_index().tail(NUMBER_OF_TRACKED_PURCHASES)
             
 # Calculate each user's network statistics
-def Calculate_Network_Statistics():
-    global USERS_DICT
-    for user in USERS_DICT.values():
-        purchases_df = Get_Network_Purchase_History(user)
+def Calculate_Network_Statistics(users=None):
+    if not users:
+        global USERS_DICT
+        users = USERS_DICT.values()
         
-        # Calculate mean and std of 'amount' column 
+    # Calculate mean and std of 'amount' column 
+    for user in users:
+        purchases_df = Get_Network_Purchase_History(user)
         if not purchases_df.empty:
             df = purchases_df['amount'].apply(pandas.to_numeric)
             user.network_mean = df.mean()
@@ -67,14 +69,17 @@ def Process_Events_From_Batch_Log(input_stream):
 def Handle_Stream_Purchase_Event(event_dictionary):
     global USERS_DICT
     global CURRENT_LOG_INDEX
-    user = USERS_DICT[event_dictionary['id']]
     
     # Update network statistics for relevant connections
+    user = USERS_DICT[event_dictionary['id']]
+    connections = list()
     for connection_id in user.friends | user.distant_connections:
         connection = USERS_DICT[connection_id]
         purchases_df = Get_Network_Purchase_History(connection)
         if CURRENT_LOG_INDEX in purchases_df.index:
-            Calculate_Network_Statistics()
+            connections.append(connection)
+            
+    Calculate_Network_Statistics(connections)
     
 # Truncate floating point decimal to two decimals
 def Truncate_Float(float):
@@ -85,7 +90,7 @@ def Truncate_Float(float):
 def Is_Anomalous_Purchase(event_dictionary):
     global USERS_DICT
     user = USERS_DICT[event_dictionary['id']]
-    if user is not None \
+    if user \
         and user.network_mean != 0 and user.network_std != 0 \
         and float(event_dictionary['amount']) > user.network_mean + user.network_std * 3:
         event_dictionary['mean'] = Truncate_Float(user.network_mean)
