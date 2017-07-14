@@ -46,7 +46,7 @@ class User:
         
 ### End Classes
 
-### Begin Main Methods
+### Begin Methods
     
 # Create user if not found in USERS_DICT
 def Verify_User_In_Users(user_id):
@@ -107,7 +107,7 @@ def Build_Distant_Connections():
         user.distant_connections = set()
         DLS(user.id, NUMBER_OF_DEGREES, set(), user.distant_connections)
         
-### End Main Methods
+### End Methods
 
 ### Begin Main
 

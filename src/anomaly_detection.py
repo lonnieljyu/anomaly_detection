@@ -65,20 +65,24 @@ def Process_Events_From_Batch_Log(input_stream):
     Build_Distant_Connections()
     Calculate_Network_Statistics()
     
-# Handle purchase event in stream log
-def Handle_Stream_Purchase_Event(event_dictionary):
+# Get connections with new network purchase history
+def Get_Connections_With_New_Network_Purchase_History(user):
     global USERS_DICT
     global CURRENT_LOG_INDEX
     
-    # Update network statistics for relevant connections
-    user = USERS_DICT[event_dictionary['id']]
     connections = list()
     for connection_id in user.friends | user.distant_connections:
         connection = USERS_DICT[connection_id]
         purchases_df = Get_Network_Purchase_History(connection)
         if CURRENT_LOG_INDEX in purchases_df.index:
             connections.append(connection)
-            
+    return connections
+    
+# Handle purchase event in stream log
+def Handle_Stream_Purchase_Event(event_dictionary):
+    global USERS_DICT
+    user = USERS_DICT[event_dictionary['id']]
+    connections = Get_Connections_With_New_Network_Purchase_History(user)
     Calculate_Network_Statistics(connections)
     
 # Truncate floating point decimal to two decimals
@@ -124,29 +128,29 @@ def Process_Events_From_Stream_Log(input_stream, output_stream):
     output_stream.write('\n'.join(anomaly_list))
     
 # Create input file stream
-def Get_File_Generator(file_path):
+def Get_Input_File_Generator(file_path):
     with open(file_path, 'r') as file:
         for line in file:
             yield line
             
 # Extract 'D' and 'T' parameters from first line of batch_log.json
-def Extract_Network_Parameters(file_generator):
+def Extract_Network_Parameters(input_file_generator):
     global NUMBER_OF_DEGREES
     global NUMBER_OF_TRACKED_PURCHASES
-    parameters_dictionary = json.loads(file_generator.__next__())
+    parameters_dictionary = json.loads(input_file_generator.__next__())
     NUMBER_OF_DEGREES = int(parameters_dictionary['D'])
     NUMBER_OF_TRACKED_PURCHASES = int(parameters_dictionary['T'])
     
 # Process batch_log.json for building data structures
 def Process_Batch_Log(input_file_path): 
-    file_generator = Get_File_Generator(input_file_path)
-    Extract_Network_Parameters(file_generator)
-    Process_Events_From_Batch_Log(file_generator)
+    input_file_generator = Get_Input_File_Generator(input_file_path)
+    Extract_Network_Parameters(input_file_generator)
+    Process_Events_From_Batch_Log(input_file_generator)
     
 # Process stream_log.json for updating data structures and anomaly detection
 def Process_Stream_Log(input_file_path, output_file_path):
     with open(output_file_path, 'w') as output_file:
-        Process_Events_From_Stream_Log(Get_File_Generator(input_file_path), output_file)
+        Process_Events_From_Stream_Log(Get_Input_File_Generator(input_file_path), output_file)
         
 ### End Methods
 
