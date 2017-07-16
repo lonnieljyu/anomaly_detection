@@ -130,9 +130,8 @@ def Process_Events_From_Stream_Log(input_stream, output_stream):
 # Create input file stream
 def Get_Input_File_Generator(file_path):
     with open(file_path, 'r') as file:
-        for line in file:
-            yield line
-            
+        yield from file
+        
 # Extract 'D' and 'T' parameters from first line of batch_log.json
 def Extract_Network_Parameters(input_file_generator):
     global NUMBER_OF_DEGREES
